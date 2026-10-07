@@ -39,6 +39,12 @@ jobs:
       - run: pip install ruff
       - run: ruff check .
 
+      # examples/build.sh is the one thing here a reader runs before they run
+      # the tool, so it gets linted like everything else. shellcheck is
+      # preinstalled on the runner.
+      - name: shellcheck
+        run: shellcheck examples/build.sh
+
   dogfood:
     # The README quotes this output. If the tool stops producing it, the README
     # is wrong, and a README that no longer describes the tool is the thing
