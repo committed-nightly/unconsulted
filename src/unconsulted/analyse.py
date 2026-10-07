@@ -252,7 +252,7 @@ def _expand(path: str, relative_to: str | None) -> str:
     path = os.path.expanduser(path)
     if not os.path.isabs(path) and relative_to:
         path = os.path.join(os.path.dirname(relative_to), path)
-    return path
+    return os.path.normpath(path)
 
 
 def _gitdir_prefix(condition: str) -> str | None:

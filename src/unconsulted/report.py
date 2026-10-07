@@ -19,8 +19,9 @@ def _shorten(path: str | None) -> str:
     return path
 
 
-def terse(findings: Iterable[Finding], out=sys.stdout) -> None:
+def terse(findings: Iterable[Finding], out=None) -> None:
     """One line each: where, what, why. The form `grep` and an editor want."""
+    out = out or sys.stdout
     for f in findings:
         place = _shorten(f.file)
         if f.line:
@@ -28,7 +29,8 @@ def terse(findings: Iterable[Finding], out=sys.stdout) -> None:
         print(f"{place}: {f.code}: {f.message}", file=out)
 
 
-def verbose(analysis: Analysis, out=sys.stdout) -> None:
+def verbose(analysis: Analysis, out=None) -> None:
+    out = out or sys.stdout
     for note in analysis.skipped:
         print(f"note: {note}", file=out)
     if analysis.skipped:
@@ -51,11 +53,12 @@ def verbose(analysis: Analysis, out=sys.stdout) -> None:
         print("Nothing unconsulted. Every line in your git config is read.", file=out)
 
 
-def explain(key: str, entries: list[Entry], lines, out=sys.stdout) -> bool:
+def explain(key: str, entries: list[Entry], lines, out=None) -> bool:
     """Show every assignment of one key, in git's order, and which one wins.
 
     Returns whether the key was set at all.
     """
+    out = out or sys.stdout
     matches = [e for e in entries if e.key.lower() == key.lower()]
     if not matches:
         print(f"{key} is not set anywhere git looks.", file=out)
