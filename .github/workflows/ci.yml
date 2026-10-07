@@ -1,0 +1,126 @@
+name: CI
+
+'on':
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # The whole suite skips without git, so assert it is here rather than
+      # let 119 skipped tests report as a green run.
+      - name: git is present
+        run: git --version
+
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ruff
+      - run: ruff check .
+
+  dogfood:
+    # The README quotes this output. If the tool stops producing it, the README
+    # is wrong, and a README that no longer describes the tool is the thing
+    # this job exists to catch.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e .
+
+      - name: the example repo yields the documented ten findings
+        run: |
+          set -o pipefail
+          REPO=$(examples/build.sh)
+          unconsulted check -C "$REPO" -q | tee findings.txt && rc=0 || rc=$?
+          test "$rc" = 1 || { echo "expected exit 1, got $rc"; exit 1; }
+          for code in shadowed typo-key dead-alias include-missing include-empty \
+                      includeif-no-such-dir case-split stale-branch no-such-remote; do
+            grep -q ": $code: " findings.txt || { echo "missing $code"; exit 1; }
+          done
+          test "$(wc -l < findings.txt)" = 10 || {
+            echo "expected 10 findings, got $(wc -l < findings.txt)"; exit 1; }
+
+      - name: every finding carries a line number
+        run: |
+          REPO=$(examples/build.sh)
+          unconsulted check -C "$REPO" -q > f.txt || true
+          # The locator goes quiet rather than guess, so a finding with no
+          # line means it disagreed with git about this very file.
+          bad=$(grep -vc ':[0-9][0-9]*: ' f.txt || true)
+          test "$bad" = 0 || { echo "$bad findings without a line number"; cat f.txt; exit 1; }
+
+      - name: a clean config finds nothing and exits 0
+        run: |
+          git init -q clean-repo
+          git -C clean-repo config user.email nobody@example.invalid
+          git -C clean-repo config alias.st 'status -sb'
+          unconsulted check -C clean-repo
+
+      - name: explain agrees with git about which value wins
+        run: |
+          git init -q explain-repo
+          printf '[user]\n\temail = first@example.invalid\n\temail = second@example.invalid\n' \
+            >> explain-repo/.git/config
+          unconsulted explain user.email -C explain-repo
+          winner=$(git -C explain-repo config user.email)
+          test "$winner" = "second@example.invalid" || { echo "git disagrees"; exit 1; }
+          unconsulted explain user.email -C explain-repo | grep -q -- "-> .*$winner"
+
+      - name: it does not accuse a real git-lfs filter config
+        # The false positive that would make the tool unusable on any machine
+        # with git-lfs: filter.<driver>.process and .required are real keys
+        # that `git help --config` does not list.
+        #
+        # NOSYSTEM and an empty global because a runner with git-lfs installed
+        # already has filter.lfs.* in /etc/gitconfig, and then the local copy
+        # below really does shadow it -- a true finding about the fixture, not
+        # the thing being tested.
+        env:
+          GIT_CONFIG_NOSYSTEM: '1'
+        run: |
+          : > empty-global
+          GIT_CONFIG_GLOBAL=$PWD/empty-global
+          export GIT_CONFIG_GLOBAL
+          git init -q lfs-repo
+          printf '[filter "lfs"]\n\tclean = git-lfs clean -- %%f\n\tprocess = git-lfs filter-process\n\trequired = true\n' \
+            >> lfs-repo/.git/config
+          unconsulted check -C lfs-repo
+
+      - name: the tool is clean on this repository's own checkout
+        run: |
+          # Not asserted as clean -- a runner's global config is not ours to
+          # control. Asserted as not crashing, and shown in the log.
+          unconsulted check --include-undocumented || test $? -le 1
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        run: |
+          bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
