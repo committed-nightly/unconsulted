@@ -170,11 +170,15 @@ the tool that is asserted rather than asked. It was seeded by
 checked by hand, and every entry records the phrase it came from:
 
 ```
-$ unconsulted multi-valued | head -4
+$ unconsulted multi-valued
+Keys where a repeat is the point, not a mistake.
+`shadowed` stays quiet about these. Add your own with --multi-valued.
+
   blame.ignoreRevsFile                     man: "may be repeated"
   core.gitProxy                            man: "may be set multiple times"
   credential.helper                        man: "multiple helpers may be defined"
   format.notes                             man: "specified multiple times"
+  ...
 ```
 
 A key missing from that table produces a `shadowed` finding that is wrong, so
