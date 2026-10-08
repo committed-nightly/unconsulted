@@ -26,6 +26,55 @@ def test_findings_exit_one(repo, capsys):
     assert "1 line git does not consult." in out
 
 
+# --- the closing summary --------------------------------------------------
+#
+# The footer is the line someone skims instead of reading the findings, so it
+# is the one place an overclaim does real damage: it can talk you into
+# deleting a line git reads. Each finding code that does not back the
+# unqualified count gets a test here.
+
+
+def test_the_undocumented_footer_does_not_call_the_line_dead(repo, capsys):
+    """The regression Jen found on #1.
+
+    `filter.lfs.process` is a key git reads every day and `git help --config`
+    does not list. The finding is a fair question to raise; the summary must
+    not answer it, least of all by contradicting the hedge it just printed.
+    """
+    repo.write('[filter "lfs"]\n\tprocess = git-lfs filter-process\n')
+    code, out, _ = run(capsys, "check", "-C", str(repo.path), "--include-undocumented")
+    assert code == 1
+    assert "undocumented-key" in out
+    assert "may well be read by something" in out  # the detail's hedge
+    assert "does not consult" not in out
+    assert "1 line that may well be consulted" in out
+
+
+def test_the_case_split_footer_says_git_reads_both_spellings(repo, capsys):
+    repo.write(
+        '[remote "Origin"]\n\turl = https://example.invalid/a.git\n'
+        '[remote "origin"]\n\turl = https://example.invalid/b.git\n'
+    )
+    code, out, _ = run(capsys, "check", "-C", str(repo.path))
+    assert code == 1
+    assert "2 lines git does consult" in out
+    # Both lines are consulted, so neither is unconsulted, so no count of them.
+    assert "does not consult" not in out
+
+
+def test_a_mixed_run_counts_each_claim_separately(repo, capsys):
+    """One real dead line and one case-split: two sentences, not one count."""
+    repo.write(
+        "[core]\n\tautocrfl = input\n"
+        '[remote "Origin"]\n\turl = https://example.invalid/a.git\n'
+        '[remote "origin"]\n\turl = https://example.invalid/b.git\n'
+    )
+    code, out, _ = run(capsys, "check", "-C", str(repo.path))
+    assert code == 1
+    assert "1 line git does not consult." in out
+    assert "2 lines git does consult" in out
+
+
 def test_quiet_is_one_line_per_finding(repo, capsys):
     repo.write("[core]\n\tautocrfl = input\n\tpagger = less\n")
     code, out, _ = run(capsys, "check", "-C", str(repo.path), "-q")
