@@ -4,10 +4,73 @@ from __future__ import annotations
 
 import os
 import sys
+from collections import Counter
 from collections.abc import Iterable
 
 from .analyse import Analysis, Finding
 from .oracle import Entry
+
+# What the closing summary may claim, per finding code.
+#
+# Each check already knows how sure it is, and says so in its own detail text:
+# `undocumented-key` hedges with "may well be read by something", because
+# `git help --config` is an incomplete list of the keys git reads. A single
+# count over every finding threw that away and asserted certainty for all of
+# them, two lines under the hedge it contradicted. So the claim lives next to
+# the code that earns it.
+#
+# A code belongs in _UNCONSULTED when deleting the line changes nothing that
+# works today. Anything else names the one sentence it does support.
+_UNCONSULTED = frozenset(
+    {
+        "shadowed",
+        "typo-key",
+        "dead-alias",
+        "include-missing",
+        "include-empty",
+        "includeif-no-such-dir",
+        "stale-branch",
+        "no-such-remote",
+    }
+)
+
+_HEDGED = {
+    "undocumented-key": (
+        "{n} line{s} that may well be consulted: `git help --config` is not a "
+        "complete list of the keys git reads, so each one is a question, not a verdict."
+    ),
+    "case-split": (
+        "{n} line{s} git does consult, into sections it keeps apart -- the one that "
+        "is wrong is whichever spelling you did not mean."
+    ),
+}
+
+
+def _s(n: int) -> str:
+    return "" if n == 1 else "s"
+
+
+def summary(findings: Iterable[Finding]) -> list[str]:
+    """The closing lines: one sentence per kind of claim, not one count across all.
+
+    Nothing here may say more than the finding it is counting already said.
+    """
+    counts = Counter(f.code for f in findings)
+    if not counts:
+        return ["Nothing unconsulted. Every line in your git config is read."]
+
+    lines = []
+    if n := sum(c for code, c in counts.items() if code in _UNCONSULTED):
+        lines.append(f"{n} line{_s(n)} git does not consult.")
+    for code, sentence in _HEDGED.items():
+        if n := counts.get(code, 0):
+            lines.append(sentence.format(n=n, s=_s(n)))
+    # A code in neither table is a check added without anyone deciding what the
+    # summary may claim for it. Count it and say nothing about it, rather than
+    # guess; tests/test_tables.py is what keeps this branch unreachable.
+    if n := sum(c for code, c in counts.items() if code not in _UNCONSULTED | set(_HEDGED)):
+        lines.append(f"{n} further finding{_s(n)} above.")
+    return lines
 
 
 def _shorten(path: str | None) -> str:
@@ -46,11 +109,8 @@ def verbose(analysis: Analysis, out=None) -> None:
             print(f"      {line}", file=out)
         print(file=out)
 
-    n = len(analysis.findings)
-    if n:
-        print(f"{n} line{'s' if n != 1 else ''} git does not consult.", file=out)
-    else:
-        print("Nothing unconsulted. Every line in your git config is read.", file=out)
+    for line in summary(analysis.findings):
+        print(line, file=out)
 
 
 def explain(key: str, entries: list[Entry], lines, out=None) -> bool:
