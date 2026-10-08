@@ -70,6 +70,46 @@ jobs:
           test "$(wc -l < findings.txt)" = 10 || {
             echo "expected 10 findings, got $(wc -l < findings.txt)"; exit 1; }
 
+      - name: the summary counts the example's findings 8 and 2, as the README says
+        run: |
+          REPO=$(examples/build.sh)
+          out=$(unconsulted check -C "$REPO") || true
+          summary=$(printf '%s\n' "$out" | tail -2)
+          printf '%s\n' "$summary"
+          if ! printf '%s\n' "$summary" | grep -qx '8 lines git does not consult.'; then
+            echo "the eight-dead-lines count changed; the README quotes it"; exit 1
+          fi
+          if ! printf '%s\n' "$summary" | grep -q 'in sections it keeps apart'; then
+            echo "case-split is not being counted separately"; exit 1
+          fi
+
+      - name: an undocumented key is never counted as a line git does not consult
+        # The regression found in review on #1. filter.lfs.process is a key git
+        # reads every day and `git help --config` does not list, so the finding
+        # hedges -- and the summary used to assert the opposite two lines below
+        # it. Anyone trusting the count over the caveat deletes a working line.
+        #
+        # NOSYSTEM and an empty global so a runner that has git-lfs in
+        # /etc/gitconfig does not add findings of its own.
+        env:
+          GIT_CONFIG_NOSYSTEM: '1'
+        run: |
+          : > empty-global-undoc
+          GIT_CONFIG_GLOBAL=$PWD/empty-global-undoc
+          export GIT_CONFIG_GLOBAL
+          git init -q undoc-repo
+          printf '[filter "lfs"]\n\tprocess = git-lfs filter-process\n' \
+            >> undoc-repo/.git/config
+          out=$(unconsulted check -C undoc-repo --include-undocumented) || true
+          printf '%s\n' "$out"
+          if printf '%s\n' "$out" | grep -q 'does not consult'; then
+            echo "the summary called a key git reads daily a line git does not consult"
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q 'may or may not consult'; then
+            echo "expected the hedged summary for undocumented-key"; exit 1
+          fi
+
       - name: every finding carries a line number
         run: |
           REPO=$(examples/build.sh)

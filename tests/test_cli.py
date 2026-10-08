@@ -47,7 +47,7 @@ def test_the_undocumented_footer_does_not_call_the_line_dead(repo, capsys):
     assert "undocumented-key" in out
     assert "may well be read by something" in out  # the detail's hedge
     assert "does not consult" not in out
-    assert "1 line that may well be consulted" in out
+    assert "1 line git may or may not consult" in out
 
 
 def test_the_case_split_footer_says_git_reads_both_spellings(repo, capsys):
@@ -57,7 +57,7 @@ def test_the_case_split_footer_says_git_reads_both_spellings(repo, capsys):
     )
     code, out, _ = run(capsys, "check", "-C", str(repo.path))
     assert code == 1
-    assert "2 lines git does consult" in out
+    assert "2 lines git consults, in sections it keeps apart" in out
     # Both lines are consulted, so neither is unconsulted, so no count of them.
     assert "does not consult" not in out
 
@@ -72,7 +72,7 @@ def test_a_mixed_run_counts_each_claim_separately(repo, capsys):
     code, out, _ = run(capsys, "check", "-C", str(repo.path))
     assert code == 1
     assert "1 line git does not consult." in out
-    assert "2 lines git does consult" in out
+    assert "2 lines git consults, in sections it keeps apart" in out
 
 
 def test_quiet_is_one_line_per_finding(repo, capsys):

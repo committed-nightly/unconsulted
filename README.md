@@ -63,8 +63,20 @@ $ unconsulted check -C "$REPO" -q
 ```
 
 Exit status is 1 when there are findings, 0 when there are none, 2 when it
-could not run. Drop the `-q` and each finding explains itself and says what to
-do about it.
+could not run. Drop the `-q` and each finding explains itself, says what to do
+about it, and ends with a count that is careful about what it claims:
+
+```
+8 lines git does not consult.
+2 lines git consults, in sections it keeps apart; the wrong one is whichever you did not mean.
+```
+
+Ten findings above, but only eight lines you can delete without losing
+something. Both `case-split` lines *are* read by git — which of the two is
+wrong depends on what you meant, and the tool has no way to know. No finding is
+counted into a claim stronger than its own explanation makes, which matters
+most for `--include-undocumented`; see [what it will not tell
+you](#what-it-will-not-tell-you).
 
 The other question — which line actually won:
 
@@ -157,7 +169,13 @@ lfs.url              -> silent, because git has no `lfs` section at all
 
 `--include-undocumented` gives you the weaker finding under a name that claims
 only what is known. It will show you third-party settings, which are usually
-fine.
+fine. The closing count keeps those separate rather than adding them to the
+dead ones, because the honest summary of an `undocumented-key` finding is a
+question:
+
+```
+1 line git may or may not consult; `git help --config` does not say.
+```
 
 **Whether a repeated key is a mistake.** `remote.origin.fetch` twice is a
 normal remote; `user.email` twice is a bug. git reads both the same way and

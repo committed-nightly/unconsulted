@@ -36,12 +36,11 @@ _UNCONSULTED = frozenset(
 
 _HEDGED = {
     "undocumented-key": (
-        "{n} line{s} that may well be consulted: `git help --config` is not a "
-        "complete list of the keys git reads, so each one is a question, not a verdict."
+        "{n} line{s} git may or may not consult; `git help --config` does not say."
     ),
     "case-split": (
-        "{n} line{s} git does consult, into sections it keeps apart -- the one that "
-        "is wrong is whichever spelling you did not mean."
+        "{n} line{s} git consults, in sections it keeps apart; the wrong one is "
+        "whichever you did not mean."
     ),
 }
 
